@@ -1,0 +1,102 @@
+:root {
+  --bg: #0f1117;
+  --bg-elevated: #151823;
+  --bg-panel: #1b1f2c;
+  --bg-panel-2: #232838;
+  --fg: #e6e8ee;
+  --fg-muted: #9aa3b2;
+  --accent: #5b8cff;
+  --accent-2: #7c5cff;
+  --good: #3ddc97;
+  --bad: #ff6b6b;
+  --warn: #ffb454;
+  --edge: #2a3145;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --gap: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary:not(:disabled):hover { background: #4470d8; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--fg-muted);
+  border-color: var(--edge);
+}
+.btn-ghost:hover { background: var(--bg-panel); color: var(--fg); }
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--edge);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  background: var(--bg-elevated);
+}
+
+.mode-toggle {
+  display: inline-flex;
+  background: var(--bg-panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.mode-btn {
+  background: transparent;
+  color: var(--fg-muted);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+}
+.mode-btn.is-active {
+  background: var(--accent);
+  color: white;
+}
+.mode-btn:not(.is-active):hover { color: var(--fg); }

@@ -6,7 +6,28 @@
     <title>ReasoningBank Anti-Fraud Demo</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark">RB</span>
+          <span class="brand-name">ReasoningBank · Anti-Fraud Demo</span>
+        </div>
+        <div id="mode-selector" class="mode-selector"></div>
+        <div class="header-actions">
+          <button id="run-button" class="btn-primary" disabled>Run demo</button>
+          <button id="reset-button" class="btn-ghost">Reset</button>
+        </div>
+      </header>
+      <main class="app-grid">
+        <section id="flow-diagram" class="panel panel-flow"></section>
+        <section id="active-pane" class="panel panel-active"></section>
+        <section id="chat-panel" class="panel panel-chat"></section>
+        <aside id="memory-bank-view" class="panel panel-bank"></aside>
+      </main>
+      <footer class="app-footer">
+        <span id="status-caption">Pick a mode and a query to begin.</span>
+      </footer>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
