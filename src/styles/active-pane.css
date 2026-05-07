@@ -141,6 +141,9 @@
 .bank-list-inline .mem-card { cursor: pointer; transition: border-color 120ms ease, background 120ms ease; }
 .bank-list-inline .mem-card:hover { border-color: var(--accent); background: rgba(91,140,255,0.06); }
 
+.origin-flag.is-success { color: var(--good); }
+.origin-flag.is-failure { color: var(--bad); }
+
 /* Memory detail popover */
 .popover-backdrop {
   position: absolute;

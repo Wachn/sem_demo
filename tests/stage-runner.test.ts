@@ -28,30 +28,31 @@ describe('runDemo', () => {
     expect(store.getState().retrievedMemoryIds.length).toBe(3);
   });
 
-  it('appends chat messages from every actor', async () => {
+  it('appends chat messages from every actor including environment', async () => {
     const store = createStore();
     await runDemo(store, 'q-pig-butcher-doubt', { stepDelayMs: 0, rng: fixedRng() });
     const senders = new Set(store.getState().chatMessages.map((m) => m.sender));
     expect(senders.has('agent')).toBe(true);
     expect(senders.has('adversary')).toBe(true);
+    expect(senders.has('environment')).toBe(true);
     expect(senders.has('system')).toBe(true);
     expect(senders.has('judge')).toBe(true);
   });
 
-  it('adds one learned memory on success', async () => {
+  it('adds one learned memory on success with origin learned-success', async () => {
     const store = createStore();
     const before = store.getState().bank.length;
     await runDemo(store, 'q-pig-butcher-doubt', { stepDelayMs: 0, rng: fixedRng() });
     expect(store.getState().bank.length).toBe(before + 1);
-    expect(store.getState().bank[store.getState().bank.length - 1].origin).toBe('learned');
+    expect(store.getState().bank[store.getState().bank.length - 1].origin).toBe('learned-success');
   });
 
-  it('on failure script, adds a reflection memory and outcome=failure', async () => {
+  it('on failure script, last memory has origin learned-failure', async () => {
     const store = createStore();
     await runDemo(store, 'q-call-report', { stepDelayMs: 0, rng: fixedRng() });
     expect(store.getState().outcome).toBe('failure');
     const last = store.getState().bank[store.getState().bank.length - 1];
-    expect(last.tags).toContain('reflection');
+    expect(last.origin).toBe('learned-failure');
   });
 
   it('throws if the query id is unknown', async () => {

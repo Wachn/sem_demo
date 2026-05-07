@@ -66,3 +66,6 @@
 
 .flow-arrow { fill: var(--edge); }
 .flow-arrow.is-active { fill: var(--accent); }
+
+.flow-node { cursor: grab; }
+.flow-node.is-dragging { cursor: grabbing; opacity: 0.85; box-shadow: 0 12px 28px rgba(0,0,0,0.5); }

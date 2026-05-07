@@ -1,4 +1,4 @@
-import type { ChatMessage, Memory, Mode, Stage } from '../types';
+import type { ChatMessage, Memory, Mode, Stage, Lang, Origin } from '../types';
 import { SEED_MEMORIES } from '../data/memory-bank';
 
 export interface DemoState {
@@ -13,11 +13,13 @@ export interface DemoState {
   caption: string;
   highlightedNodeId: string | null;
   highlightedEdgeIds: string[];
-  judgeVerdict: string | null;
+  judgeVerdict: import('../types').Localized | null;
   outcome: 'success' | 'failure' | null;
   linkedExtensions: Record<string, string[]>;
   inspectedNodeId: string | null;
   inspectedMemoryId: string | null;
+  language: Lang;
+  nodePositions: Record<string, { x: number; y: number }>;
 }
 
 export type Updater = (s: DemoState) => DemoState;
@@ -27,9 +29,11 @@ export interface Store {
   setState(updater: Updater): void;
   subscribe(listener: (s: DemoState) => void): () => void;
   appendChat(m: ChatMessage): void;
-  addLearnedMemory(m: Omit<Memory, 'origin'>, opts?: { extendQueryIds?: string[] }): void;
+  addLearnedMemory(m: Omit<Memory, 'origin'>, opts?: { extendQueryIds?: string[]; origin?: Origin }): void;
   setInspectedNode(id: string | null): void;
   setInspectedMemory(id: string | null): void;
+  setLanguage(lang: Lang): void;
+  setNodePosition(id: string, pos: { x: number; y: number }): void;
   reset(): void;
 }
 
@@ -42,7 +46,7 @@ const initial = (): DemoState => ({
   chatMessages: [],
   bank: SEED_MEMORIES.slice(),
   newlyLearnedMemoryId: null,
-  caption: 'Pick a mode and a query to begin.',
+  caption: '',
   highlightedNodeId: null,
   highlightedEdgeIds: [],
   judgeVerdict: null,
@@ -50,6 +54,8 @@ const initial = (): DemoState => ({
   linkedExtensions: {},
   inspectedNodeId: null,
   inspectedMemoryId: null,
+  language: 'en',
+  nodePositions: {},
 });
 
 export function createStore(): Store {
@@ -72,7 +78,7 @@ export function createStore(): Store {
       notify();
     },
     addLearnedMemory(m, opts = {}) {
-      const learned: Memory = { ...m, origin: 'learned' };
+      const learned: Memory = { ...m, origin: opts.origin ?? 'learned-success' };
       const ext = { ...state.linkedExtensions };
       for (const qid of opts.extendQueryIds ?? []) {
         ext[qid] = [...(ext[qid] ?? []), m.id];
@@ -93,10 +99,20 @@ export function createStore(): Store {
       state = { ...state, inspectedMemoryId: id };
       notify();
     },
+    setLanguage(lang) {
+      state = { ...state, language: lang };
+      notify();
+    },
+    setNodePosition(id, pos) {
+      state = { ...state, nodePositions: { ...state.nodePositions, [id]: pos } };
+      notify();
+    },
     reset() {
       const bank = state.bank;
       const linkedExtensions = state.linkedExtensions;
-      state = { ...initial(), bank, linkedExtensions };
+      const language = state.language;
+      const nodePositions = state.nodePositions;
+      state = { ...initial(), bank, linkedExtensions, language, nodePositions };
       notify();
     },
   };

@@ -25,25 +25,43 @@ describe('store', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it('appendChat appends a message', () => {
+  it('appendChat appends a localized message', () => {
     const s = createStore();
-    s.appendChat({ sender: 'system', text: 'hello' });
-    expect(s.getState().chatMessages).toEqual([{ sender: 'system', text: 'hello' }]);
+    s.appendChat({ sender: 'system', text: { en: 'hello', zh: '你好' } });
+    expect(s.getState().chatMessages.length).toBe(1);
+    expect(s.getState().chatMessages[0].text.en).toBe('hello');
+    expect(s.getState().chatMessages[0].text.zh).toBe('你好');
   });
 
-  it('addLearnedMemory inserts a memory marked as learned', () => {
+  it('addLearnedMemory inserts a memory with default learned-success origin', () => {
     const s = createStore();
     const before = s.getState().bank.length;
     s.addLearnedMemory({
       id: 'mem-new',
-      title: 't',
-      description: 'd',
-      content: 'c',
+      title: { en: 't', zh: '标题' },
+      description: { en: 'd', zh: '描述' },
+      content: { en: 'c', zh: '内容' },
       tags: ['x'],
     });
     const after = s.getState().bank;
     expect(after.length).toBe(before + 1);
-    expect(after[after.length - 1].origin).toBe('learned');
+    expect(after[after.length - 1].origin).toBe('learned-success');
+  });
+
+  it('addLearnedMemory respects opts.origin = learned-failure', () => {
+    const s = createStore();
+    s.addLearnedMemory(
+      {
+        id: 'mem-fail',
+        title: { en: 't', zh: '标题' },
+        description: { en: 'd', zh: '描述' },
+        content: { en: 'c', zh: '内容' },
+        tags: ['reflection'],
+      },
+      { origin: 'learned-failure' },
+    );
+    const last = s.getState().bank[s.getState().bank.length - 1];
+    expect(last.origin).toBe('learned-failure');
   });
 });
 
@@ -84,5 +102,38 @@ describe('inspect state', () => {
     s.reset();
     expect(s.getState().inspectedNodeId).toBeNull();
     expect(s.getState().inspectedMemoryId).toBeNull();
+  });
+});
+
+describe('language + node positions', () => {
+  it('starts with language=en and empty nodePositions', () => {
+    const s = createStore();
+    expect(s.getState().language).toBe('en');
+    expect(s.getState().nodePositions).toEqual({});
+  });
+  it('setLanguage updates and notifies', () => {
+    const s = createStore();
+    const fn = vi.fn();
+    s.subscribe(fn);
+    s.setLanguage('zh');
+    expect(s.getState().language).toBe('zh');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it('setNodePosition merges per-id positions', () => {
+    const s = createStore();
+    s.setNodePosition('node-agent', { x: 100, y: 200 });
+    s.setNodePosition('node-bank', { x: 50, y: 10 });
+    expect(s.getState().nodePositions).toEqual({
+      'node-agent': { x: 100, y: 200 },
+      'node-bank': { x: 50, y: 10 },
+    });
+  });
+  it('reset preserves language and nodePositions', () => {
+    const s = createStore();
+    s.setLanguage('zh');
+    s.setNodePosition('node-agent', { x: 1, y: 2 });
+    s.reset();
+    expect(s.getState().language).toBe('zh');
+    expect(s.getState().nodePositions['node-agent']).toEqual({ x: 1, y: 2 });
   });
 });

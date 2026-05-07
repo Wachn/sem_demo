@@ -5,12 +5,31 @@ import { FRAUD_SIGNALS } from '../data/fraud-signals';
 import { CHAT_SNIPPETS } from '../data/chat-snippets';
 import { retrieveTopMemories } from './retrieval';
 import { sleep } from './sleep';
+import { ui } from './i18n';
+import type { Localized, StepKind, Actor } from '../types';
 
 export interface RunOptions {
   stepDelayMs?: number;
   stageDelayMs?: number;
   rng?: () => number;
 }
+
+const STEP_PREFIX_KEY: Record<StepKind, 'step.thought' | 'step.planned' | 'step.projection' | 'step.action' | 'step.observation' | 'step.terminate'> = {
+  thought: 'step.thought',
+  planned_action: 'step.planned',
+  adversary_projection: 'step.projection',
+  action_taken: 'step.action',
+  environment_observation: 'step.observation',
+  terminate: 'step.terminate',
+};
+
+const ACTOR_NODE: Record<Actor, string> = {
+  agent: 'node-agent',
+  adversary: 'node-adversary',
+  environment: 'node-environment',
+};
+
+function L(en: string, zh: string): Localized { return { en, zh }; }
 
 export async function runDemo(store: Store, queryId: string, opts: RunOptions = {}): Promise<void> {
   const stepDelay = opts.stepDelayMs ?? 900;
@@ -21,6 +40,7 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
   if (!query) throw new Error(`runDemo: unknown query id ${queryId}`);
   const script = TRAJECTORIES.find((t) => t.id === query.scriptId);
   if (!script) throw new Error(`runDemo: no script for query ${queryId} (${query.scriptId})`);
+  const lang = store.getState().language;
 
   store.setState((s) => ({
     ...s,
@@ -32,7 +52,7 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
     newlyLearnedMemoryId: null,
     judgeVerdict: null,
     outcome: null,
-    caption: 'Starting demo run…',
+    caption: ui('caption.starting', lang),
     highlightedNodeId: null,
     highlightedEdgeIds: [],
   }));
@@ -41,20 +61,20 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
   store.setState((s) => ({
     ...s,
     stage: 'input',
-    caption: 'Stage 1 · Input mode selected. Sample data being prepared.',
+    caption: ui('caption.s1', lang),
     highlightedNodeId: 'node-input',
     highlightedEdgeIds: [],
   }));
   if (query.mode === 'fraud-signals') {
     const sig = FRAUD_SIGNALS.find((f) => f.id === query.fraudSignalId)!;
-    store.appendChat({ sender: 'system', text: `[Fraud signal report]\n${sig.summary}` });
-    for (const detail of sig.details) store.appendChat({ sender: 'system', text: `• ${detail}` });
+    store.appendChat({ sender: 'system', text: L(`${ui('sysmsg.input.signal', 'en')}\n${sig.summary.en}`, `${ui('sysmsg.input.signal', 'zh')}\n${sig.summary.zh}`) });
+    for (const detail of sig.details) {
+      store.appendChat({ sender: 'system', text: L('• ' + detail.en, '• ' + detail.zh) });
+    }
   } else {
     const snip = CHAT_SNIPPETS.find((c) => c.id === query.chatSnippetId)!;
-    store.appendChat({ sender: 'system', text: `[Pasted chat with ${snip.participants.counterpart}]` });
-    for (const m of snip.messages) {
-      store.appendChat({ sender: m.sender, text: m.text });
-    }
+    store.appendChat({ sender: 'system', text: L(`${ui('sysmsg.input.chat', 'en')} (${snip.participants.counterpart.en})`, `${ui('sysmsg.input.chat', 'zh')} (${snip.participants.counterpart.zh})`) });
+    for (const m of snip.messages) store.appendChat(m);
   }
   await sleep(stageDelay);
 
@@ -62,14 +82,14 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
   store.setState((s) => ({
     ...s,
     stage: 'query',
-    caption: 'Stage 2 · User query formed and sent.',
+    caption: ui('caption.s2', lang),
     highlightedNodeId: 'node-query',
     highlightedEdgeIds: ['edge-input-query'],
   }));
-  store.appendChat({ sender: 'system', text: `[User query] ${query.label} — ${query.preview}` });
+  store.appendChat({ sender: 'system', text: L(`${ui('sysmsg.userQuery', 'en')} ${query.label.en} — ${query.preview.en}`, `${ui('sysmsg.userQuery', 'zh')} ${query.label.zh} — ${query.preview.zh}`) });
   await sleep(stageDelay);
 
-  // Stage 3: retrieval — pool extended by prior learned memories
+  // Stage 3: retrieval
   const ext = store.getState().linkedExtensions[query.id] ?? [];
   const effectiveLinked = [...query.linkedMemoryIds, ...ext].filter((id) =>
     store.getState().bank.some((m) => m.id === id),
@@ -79,39 +99,48 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
     ...s,
     stage: 'retrieval',
     retrievedMemoryIds: retrieved.map((m) => m.id),
-    caption: 'Stage 3 · Top-3 memories retrieved from ReasoningBank and appended to system prompt.',
+    caption: ui('caption.s3', lang),
     highlightedNodeId: 'node-bank',
     highlightedEdgeIds: ['edge-bank-agent'],
   }));
   store.appendChat({
     sender: 'system',
-    text: `[System prompt assembled with retrieved memories]\n${retrieved.map((m, i) => `(${i + 1}) ${m.title}`).join('\n')}`,
+    text: L(
+      `${ui('sysmsg.systemPrompt', 'en')}\n${retrieved.map((m, i) => `(${i + 1}) ${m.title.en}`).join('\n')}`,
+      `${ui('sysmsg.systemPrompt', 'zh')}\n${retrieved.map((m, i) => `(${i + 1}) ${m.title.zh}`).join('\n')}`,
+    ),
   });
   await sleep(stageDelay);
 
-  // Stage 4: 1.5MaTTs
+  // Stage 4: 1.5MaTTs trajectory loop
   store.setState((s) => ({
     ...s,
     stage: 'reasoning',
-    caption: 'Stage 4 · 1.5MaTTs — agent and adversarial environment exchange actions and observations.',
+    caption: ui('caption.s4', lang),
     highlightedNodeId: 'node-agent',
-    highlightedEdgeIds: ['edge-agent-adversary', 'edge-adversary-agent'],
+    highlightedEdgeIds: ['edge-agent-adversary', 'edge-adversary-agent', 'edge-agent-environment', 'edge-environment-agent'],
   }));
   for (let i = 0; i < script.steps.length; i++) {
-    const step = script.steps[i];
+    const stepObj = script.steps[i];
+    const enPrefix = ui(STEP_PREFIX_KEY[stepObj.kind], 'en');
+    const zhPrefix = ui(STEP_PREFIX_KEY[stepObj.kind], 'zh');
+    let edges: string[] = [];
+    if (stepObj.kind === 'planned_action') edges = ['edge-agent-adversary'];
+    else if (stepObj.kind === 'adversary_projection') edges = ['edge-adversary-agent'];
+    else if (stepObj.kind === 'action_taken') edges = ['edge-agent-environment'];
+    else if (stepObj.kind === 'environment_observation') edges = ['edge-environment-agent'];
+    else if (stepObj.kind === 'terminate') edges = ['edge-agent-judge'];
+    else edges = [];
     store.setState((s) => ({
       ...s,
       trajectoryStepIndex: i,
-      highlightedNodeId: step.actor === 'agent' ? 'node-agent' : 'node-adversary',
-      highlightedEdgeIds:
-        step.actor === 'agent' ? ['edge-agent-adversary'] : ['edge-adversary-agent'],
+      highlightedNodeId: ACTOR_NODE[stepObj.actor],
+      highlightedEdgeIds: edges,
     }));
-    const prefix =
-      step.kind === 'thought' ? '🧠 thought · '
-      : step.kind === 'action' ? '➡️ action · '
-      : step.kind === 'observation' ? '👁 observation · '
-      : '🛑 terminate · ';
-    store.appendChat({ sender: step.actor, text: prefix + step.text });
+    store.appendChat({
+      sender: stepObj.actor,
+      text: L(`${enPrefix} · ${stepObj.text.en}`, `${zhPrefix} · ${stepObj.text.zh}`),
+    });
     await sleep(stepDelay);
   }
 
@@ -119,15 +148,15 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
   store.setState((s) => ({
     ...s,
     stage: 'factory',
-    caption: 'Stage 5 · Factory — judge evaluates trajectory; insight or reflection extracted to a new memory.',
+    caption: ui('caption.s5', lang),
     highlightedNodeId: 'node-judge',
     highlightedEdgeIds: ['edge-agent-judge', 'edge-judge-bank'],
     judgeVerdict: script.judgeVerdict,
     outcome: script.outcome,
   }));
-  store.appendChat({ sender: 'judge', text: `[Judge verdict · ${script.outcome}] ${script.judgeVerdict}` });
+  store.appendChat({ sender: 'judge', text: L(`[${script.outcome}] ${script.judgeVerdict.en}`, `[${script.outcome === 'success' ? '成功' : '失败'}] ${script.judgeVerdict.zh}`) });
 
-  const memTemplate = script.outcome === 'success' ? script.successMemory! : script.reflectionMemory!;
+  const tpl = script.outcome === 'success' ? script.successMemory! : script.reflectionMemory!;
   const newId = `mem-${script.id}-${Date.now()}`;
   const extendTargets = QUERIES.filter((q) => {
     if (q.id === query.id) return true;
@@ -137,30 +166,29 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
         .filter((m): m is NonNullable<typeof m> => Boolean(m))
         .flatMap((m) => m.tags),
     );
-    return memTemplate.tags.some((t) => qTags.has(t));
+    return tpl.tags.some((t) => qTags.has(t));
   }).map((q) => q.id);
 
   store.addLearnedMemory(
     {
       id: newId,
-      title: memTemplate.title,
-      description: memTemplate.description,
-      content: memTemplate.content,
-      tags: memTemplate.tags,
+      title: tpl.title,
+      description: tpl.description,
+      content: tpl.content,
+      tags: tpl.tags,
     },
-    { extendQueryIds: extendTargets },
+    { extendQueryIds: extendTargets, origin: script.outcome === 'success' ? 'learned-success' : 'learned-failure' },
   );
   store.appendChat({
     sender: 'system',
-    text: `[New memory stored]\nTitle: ${memTemplate.title}\nDescription: ${memTemplate.description}`,
+    text: L(`${ui('sysmsg.newMemory', 'en')}\n${tpl.title.en} — ${tpl.description.en}`, `${ui('sysmsg.newMemory', 'zh')}\n${tpl.title.zh} — ${tpl.description.zh}`),
   });
   await sleep(stageDelay);
 
-  // Done
   store.setState((s) => ({
     ...s,
     stage: 'done',
-    caption: `Run complete · outcome: ${script.outcome}. Memory bank now has ${s.bank.length} memories.`,
+    caption: script.outcome === 'success' ? ui('caption.done.success', lang) : ui('caption.done.failure', lang),
     highlightedNodeId: null,
     highlightedEdgeIds: [],
   }));
