@@ -1,0 +1,88 @@
+import { describe, it, expect, vi } from 'vitest';
+import { createStore, type DemoState } from '../src/lib/store';
+
+describe('store', () => {
+  it('starts in idle state with empty fields', () => {
+    const s = createStore();
+    const state = s.getState();
+    expect(state.stage).toBe('idle');
+    expect(state.mode).toBe('fraud-signals');
+    expect(state.selectedQueryId).toBeNull();
+    expect(state.retrievedMemoryIds).toEqual([]);
+    expect(state.chatMessages).toEqual([]);
+    expect(state.bank.length).toBeGreaterThan(0);
+  });
+
+  it('notifies subscribers on setState', () => {
+    const s = createStore();
+    const fn = vi.fn();
+    const off = s.subscribe(fn);
+    s.setState((state: DemoState) => ({ ...state, stage: 'input' }));
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(s.getState().stage).toBe('input');
+    off();
+    s.setState((state) => ({ ...state, stage: 'query' }));
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('appendChat appends a message', () => {
+    const s = createStore();
+    s.appendChat({ sender: 'system', text: 'hello' });
+    expect(s.getState().chatMessages).toEqual([{ sender: 'system', text: 'hello' }]);
+  });
+
+  it('addLearnedMemory inserts a memory marked as learned', () => {
+    const s = createStore();
+    const before = s.getState().bank.length;
+    s.addLearnedMemory({
+      id: 'mem-new',
+      title: 't',
+      description: 'd',
+      content: 'c',
+      tags: ['x'],
+    });
+    const after = s.getState().bank;
+    expect(after.length).toBe(before + 1);
+    expect(after[after.length - 1].origin).toBe('learned');
+  });
+});
+
+describe('inspect state', () => {
+  it('starts with inspectedNodeId and inspectedMemoryId null', () => {
+    const s = createStore();
+    expect(s.getState().inspectedNodeId).toBeNull();
+    expect(s.getState().inspectedMemoryId).toBeNull();
+  });
+
+  it('setInspectedNode toggles the value and notifies subscribers', () => {
+    const s = createStore();
+    const fn = vi.fn();
+    s.subscribe(fn);
+    s.setInspectedNode('node-bank');
+    expect(s.getState().inspectedNodeId).toBe('node-bank');
+    expect(fn).toHaveBeenCalledTimes(1);
+    s.setInspectedNode(null);
+    expect(s.getState().inspectedNodeId).toBeNull();
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('setInspectedMemory toggles independently of inspectedNodeId', () => {
+    const s = createStore();
+    s.setInspectedNode('node-bank');
+    s.setInspectedMemory('mem-pig-butcher-01');
+    expect(s.getState().inspectedNodeId).toBe('node-bank');
+    expect(s.getState().inspectedMemoryId).toBe('mem-pig-butcher-01');
+    s.setInspectedMemory(null);
+    expect(s.getState().inspectedMemoryId).toBeNull();
+    expect(s.getState().inspectedNodeId).toBe('node-bank');
+  });
+
+  it('reset clears inspect state but preserves bank and linkedExtensions', () => {
+    const s = createStore();
+    s.setInspectedNode('node-bank');
+    s.setInspectedMemory('mem-pig-butcher-01');
+    s.reset();
+    expect(s.getState().inspectedNodeId).toBeNull();
+    expect(s.getState().inspectedMemoryId).toBeNull();
+  });
+});
