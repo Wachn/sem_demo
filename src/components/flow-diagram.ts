@@ -16,7 +16,7 @@ interface EdgeDef {
 }
 
 const NODE_W = 180;
-const NODE_H = 76;
+const NODE_H = 86;
 
 const NODES: NodeDef[] = [
   { id: 'node-input',       x:  20, y: 200, icon: 'I' },

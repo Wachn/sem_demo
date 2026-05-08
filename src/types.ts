@@ -55,7 +55,8 @@ export interface Query {
 
 export type StepKind =
   | 'thought'
-  | 'planned_action'
+  | 'candidate_trajectory'
+  | 'contrastive_selection'
   | 'adversary_projection'
   | 'action_taken'
   | 'environment_observation'
@@ -67,6 +68,15 @@ export interface TrajectoryStep {
   kind: StepKind;
   actor: Actor;
   text: Localized;
+  /** 1-based round of the MaTTs loop this step belongs to. Required on every
+      step from candidate_trajectory through environment_observation. Optional
+      on standalone thoughts and on terminate. */
+  roundIndex?: number;
+  /** Only on `candidate_trajectory`. */
+  candidateIndex?: 1 | 2 | 3;
+  candidateLabel?: Localized;
+  /** Only on `contrastive_selection` — which candidate from the same round was chosen. */
+  selectedIndex?: 1 | 2 | 3;
 }
 
 export type Outcome = 'success' | 'failure';

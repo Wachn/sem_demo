@@ -61,6 +61,41 @@ describe('runDemo', () => {
   });
 });
 
+describe('1.5MaTTs round tracking', () => {
+  beforeEach(() => {
+    vi.stubGlobal('setTimeout', (fn: () => void) => {
+      Promise.resolve().then(fn);
+      return 0;
+    });
+  });
+
+  it('emits at least 3 candidate_trajectory chat messages from agent before any environment observation', async () => {
+    const store = createStore();
+    await runDemo(store, 'q-pig-butcher-doubt', { stepDelayMs: 0, rng: fixedRng() });
+    const msgs = store.getState().chatMessages;
+    const candIdx: number[] = [];
+    const envIdx: number[] = [];
+    msgs.forEach((m, i) => {
+      const t = m.text.en;
+      if (t.includes('candidate (1)') || t.includes('candidate (2)') || t.includes('candidate (3)')) candIdx.push(i);
+      if (m.sender === 'environment') envIdx.push(i);
+    });
+    expect(candIdx.length).toBeGreaterThanOrEqual(3);
+    expect(envIdx.length).toBeGreaterThanOrEqual(1);
+    expect(candIdx[2]).toBeLessThan(envIdx[0]);
+  });
+
+  it('updates currentRoundIndex as the trajectory progresses', async () => {
+    const store = createStore();
+    let maxRound = 0;
+    store.subscribe((s) => {
+      if (typeof s.currentRoundIndex === 'number') maxRound = Math.max(maxRound, s.currentRoundIndex);
+    });
+    await runDemo(store, 'q-velocity-report', { stepDelayMs: 0, rng: fixedRng() });
+    expect(maxRound).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('learned-memory linking', () => {
   beforeEach(() => {
     vi.stubGlobal('setTimeout', (fn: () => void) => {

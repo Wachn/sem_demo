@@ -1,5 +1,6 @@
 import type { ChatMessage, Memory, Mode, Stage, Lang, Origin } from '../types';
 import { SEED_MEMORIES } from '../data/memory-bank';
+import { loadBank, saveBank, clearBank } from './persistence';
 
 export interface DemoState {
   mode: Mode;
@@ -15,6 +16,7 @@ export interface DemoState {
   highlightedEdgeIds: string[];
   judgeVerdict: import('../types').Localized | null;
   outcome: 'success' | 'failure' | null;
+  currentRoundIndex: number | null;
   linkedExtensions: Record<string, string[]>;
   inspectedNodeId: string | null;
   inspectedMemoryId: string | null;
@@ -34,6 +36,9 @@ export interface Store {
   setInspectedMemory(id: string | null): void;
   setLanguage(lang: Lang): void;
   setNodePosition(id: string, pos: { x: number; y: number }): void;
+  updateMemory(id: string, patch: Partial<Omit<Memory, 'id'>>): void;
+  deleteMemory(id: string): void;
+  restoreDefaults(): void;
   reset(): void;
 }
 
@@ -44,13 +49,14 @@ const initial = (): DemoState => ({
   retrievedMemoryIds: [],
   trajectoryStepIndex: -1,
   chatMessages: [],
-  bank: SEED_MEMORIES.slice(),
+  bank: loadBank() ?? SEED_MEMORIES.slice(),
   newlyLearnedMemoryId: null,
   caption: '',
   highlightedNodeId: null,
   highlightedEdgeIds: [],
   judgeVerdict: null,
   outcome: null,
+  currentRoundIndex: null,
   linkedExtensions: {},
   inspectedNodeId: null,
   inspectedMemoryId: null,
@@ -89,6 +95,7 @@ export function createStore(): Store {
         newlyLearnedMemoryId: m.id,
         linkedExtensions: ext,
       };
+      saveBank(state.bank);
       notify();
     },
     setInspectedNode(id) {
@@ -105,6 +112,26 @@ export function createStore(): Store {
     },
     setNodePosition(id, pos) {
       state = { ...state, nodePositions: { ...state.nodePositions, [id]: pos } };
+      notify();
+    },
+    updateMemory(id, patch) {
+      state = {
+        ...state,
+        bank: state.bank.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      };
+      saveBank(state.bank);
+      notify();
+    },
+    deleteMemory(id) {
+      state = { ...state, bank: state.bank.filter((m) => m.id !== id) };
+      if (state.inspectedMemoryId === id) state = { ...state, inspectedMemoryId: null };
+      saveBank(state.bank);
+      notify();
+    },
+    restoreDefaults() {
+      clearBank();
+      state = { ...state, bank: SEED_MEMORIES.slice(), linkedExtensions: {}, inspectedMemoryId: null };
+      saveBank(state.bank);
       notify();
     },
     reset() {

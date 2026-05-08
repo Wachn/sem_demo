@@ -102,13 +102,33 @@ describe('trajectory scripts', () => {
       expect(actors.has('environment')).toBe(true);
     }
   });
-  it('every script has at least one of each new step kind', () => {
+  it('every script uses the new step kinds (no planned_action)', () => {
     for (const t of TRAJECTORIES) {
       const kinds = new Set(t.steps.map((s) => s.kind));
-      expect(kinds.has('planned_action')).toBe(true);
+      expect(kinds.has('candidate_trajectory')).toBe(true);
+      expect(kinds.has('contrastive_selection')).toBe(true);
       expect(kinds.has('adversary_projection')).toBe(true);
       expect(kinds.has('action_taken')).toBe(true);
       expect(kinds.has('environment_observation')).toBe(true);
+      expect(kinds.has('planned_action' as never)).toBe(false);
+    }
+  });
+  it('every round has exactly 3 candidates with candidateIndex 1, 2, 3 and one selection in the same round', () => {
+    for (const t of TRAJECTORIES) {
+      const byRound = new Map<number, { candidates: number[]; selections: number[] }>();
+      for (const s of t.steps) {
+        if (typeof s.roundIndex !== 'number') continue;
+        if (!byRound.has(s.roundIndex)) byRound.set(s.roundIndex, { candidates: [], selections: [] });
+        const r = byRound.get(s.roundIndex)!;
+        if (s.kind === 'candidate_trajectory' && typeof s.candidateIndex === 'number') r.candidates.push(s.candidateIndex);
+        if (s.kind === 'contrastive_selection' && typeof s.selectedIndex === 'number') r.selections.push(s.selectedIndex);
+      }
+      for (const [round, r] of byRound) {
+        expect(r.candidates.sort()).toEqual([1, 2, 3]);
+        expect(r.selections.length).toBe(1);
+        expect([1, 2, 3]).toContain(r.selections[0]);
+        expect(round).toBeGreaterThanOrEqual(1);
+      }
     }
   });
   it('every script step.text and judgeVerdict are bilingual', () => {

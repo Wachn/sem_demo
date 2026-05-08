@@ -157,9 +157,65 @@ export function mountActivePane(root: HTMLElement, store: Store): () => void {
       const memsBlock = retrieved.length
         ? `<div class="kv-block"><h4>${ui('pane.systemPrompt', lang)}</h4>${retrieved.map((m) => memCard(m, lang)).join('')}</div>`
         : `<div class="kv-block"><h4>${ui('pane.systemPrompt', lang)}</h4><div class="body">${ui('pane.systemPrompt.empty', lang)}</div></div>`;
+
+      const recentAgentMsgs = s.chatMessages.filter((m) => m.sender === 'agent');
+      const candidates: { idx: number; labelEn: string; textEn: string; labelZh: string; textZh: string }[] = [];
+      let selectedIdx: number | null = null;
+      let selectionEn = '';
+      let selectionZh = '';
+      const candPrefix = ui('step.candidate', 'en');
+      const selPrefix = ui('step.selection', 'en');
+      for (let i = recentAgentMsgs.length - 1; i >= 0; i--) {
+        const m = recentAgentMsgs[i];
+        const enText = m.text.en;
+        const zhText = m.text.zh;
+        if (selectedIdx === null && enText.startsWith(selPrefix)) {
+          const matchEn = enText.match(/→ \((\d)\)\s*·\s*([\s\S]*)$/);
+          const matchZh = zhText.match(/→ \((\d)\)\s*·\s*([\s\S]*)$/);
+          if (matchEn) {
+            selectedIdx = Number(matchEn[1]);
+            selectionEn = matchEn[2] ?? '';
+          }
+          if (matchZh) selectionZh = matchZh[2] ?? '';
+        } else if (enText.startsWith(candPrefix)) {
+          const m2en = enText.match(/\((\d)\)\s+([^·]+?)\s*·\s*([\s\S]*)$/);
+          const m2zh = zhText.match(/\((\d)\)\s+([^·]+?)\s*·\s*([\s\S]*)$/);
+          if (m2en && candidates.findIndex((c) => c.idx === Number(m2en[1])) === -1) {
+            candidates.unshift({
+              idx: Number(m2en[1]),
+              labelEn: (m2en[2] ?? '').trim(),
+              textEn: (m2en[3] ?? '').trim(),
+              labelZh: (m2zh?.[2] ?? '').trim(),
+              textZh: (m2zh?.[3] ?? '').trim(),
+            });
+            if (candidates.length === 3) break;
+          }
+        }
+      }
+      candidates.sort((a, b) => a.idx - b.idx);
+
+      const contrastiveBlock = candidates.length
+        ? `<div class="kv-block"><h4>${ui('pane.contrastive.title', lang)}${s.currentRoundIndex ? ` · ${ui('pane.contrastive.round', lang)} ${s.currentRoundIndex}` : ''}</h4>
+            <div class="cand-grid">
+              ${candidates.map((c) => `
+                <div class="cand-card${c.idx === selectedIdx ? ' is-selected' : ''}">
+                  ${c.idx === selectedIdx ? `<span class="cand-check">${esc(ui('pane.contrastive.selected', lang))}</span>` : ''}
+                  <div class="cand-head">
+                    <span class="cand-idx">${c.idx}</span>
+                    <span class="cand-label">${esc(lang === 'zh' ? c.labelZh : c.labelEn)}</span>
+                  </div>
+                  <div class="cand-text">${esc(lang === 'zh' ? c.textZh : c.textEn)}</div>
+                </div>
+              `).join('')}
+            </div>
+            ${selectedIdx !== null ? `<div class="cand-selection">${esc(lang === 'zh' ? selectionZh : selectionEn)}</div>` : ''}
+          </div>`
+        : `<div class="kv-block"><h4>${ui('pane.contrastive.title', lang)}</h4><div class="body">${ui('pane.contrastive.empty', lang)}</div></div>`;
+
       return `
         <div class="kv-block"><h4>${ui('pane.role', lang)}</h4><div class="body">${ui('pane.agentRole', lang)}</div></div>
         ${memsBlock}
+        ${contrastiveBlock}
       `;
     }
 

@@ -6,6 +6,7 @@ export function mountMemoryBankView(root: HTMLElement, store: Store): () => void
     <div class="panel-header"><span data-role="title"></span><span class="bank-count" data-role="count"></span></div>
     <div class="bank-filter">
       <input type="text" data-role="filter" />
+      <button class="btn-ghost" data-role="restore" style="margin-top:6px;width:100%"></button>
     </div>
     <div class="bank-list" data-role="list"></div>
   `;
@@ -13,6 +14,7 @@ export function mountMemoryBankView(root: HTMLElement, store: Store): () => void
   const list = root.querySelector<HTMLDivElement>('[data-role="list"]')!;
   const countEl = root.querySelector<HTMLSpanElement>('[data-role="count"]')!;
   const input = root.querySelector<HTMLInputElement>('[data-role="filter"]')!;
+  const restoreBtn = root.querySelector<HTMLButtonElement>('[data-role="restore"]')!;
   let filter = '';
 
   input.addEventListener('input', () => { filter = input.value.trim().toLowerCase(); render(); });
@@ -22,12 +24,17 @@ export function mountMemoryBankView(root: HTMLElement, store: Store): () => void
     const id = card.getAttribute('data-id');
     if (id) store.setInspectedMemory(id);
   });
+  restoreBtn.addEventListener('click', () => {
+    const lang = store.getState().language;
+    if (window.confirm(ui('editor.restoreConfirm', lang))) store.restoreDefaults();
+  });
 
   function render() {
     const s = store.getState();
     const lang = s.language;
     titleEl.textContent = ui('panel.bank', lang);
     input.placeholder = ui('bank.filter', lang);
+    restoreBtn.textContent = ui('editor.restore', lang);
     const all = s.bank.slice().reverse();
     const filtered = filter ? all.filter((m) => m.tags.some((tg) => tg.toLowerCase().includes(filter))) : all;
     countEl.textContent = `${filtered.length} / ${all.length}`;

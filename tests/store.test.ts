@@ -105,6 +105,39 @@ describe('inspect state', () => {
   });
 });
 
+describe('currentRoundIndex', () => {
+  it('starts as null', () => {
+    const s = createStore();
+    expect(s.getState().currentRoundIndex).toBeNull();
+  });
+});
+
+describe('memory editor methods', () => {
+  it('updateMemory mutates by id and notifies', () => {
+    const s = createStore();
+    const id = s.getState().bank[0].id;
+    const fn = vi.fn();
+    s.subscribe(fn);
+    s.updateMemory(id, { title: { en: 'NEW', zh: '新' } });
+    expect(s.getState().bank[0].title.en).toBe('NEW');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it('deleteMemory removes by id', () => {
+    const s = createStore();
+    const before = s.getState().bank.length;
+    const id = s.getState().bank[0].id;
+    s.deleteMemory(id);
+    expect(s.getState().bank.length).toBe(before - 1);
+    expect(s.getState().bank.find((m) => m.id === id)).toBeUndefined();
+  });
+  it('restoreDefaults resets bank to seed', () => {
+    const s = createStore();
+    s.deleteMemory(s.getState().bank[0].id);
+    s.restoreDefaults();
+    expect(s.getState().bank.length).toBeGreaterThanOrEqual(12);
+  });
+});
+
 describe('language + node positions', () => {
   it('starts with language=en and empty nodePositions', () => {
     const s = createStore();

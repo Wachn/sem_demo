@@ -144,6 +144,55 @@
 .origin-flag.is-success { color: var(--good); }
 .origin-flag.is-failure { color: var(--bad); }
 
+.cand-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.cand-card {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  position: relative;
+}
+.cand-card .cand-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.cand-card .cand-idx {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 11px;
+  background: var(--bg-panel); color: var(--fg-muted);
+  border: 1px solid var(--edge);
+}
+.cand-card .cand-label { font-weight: 600; font-size: 13px; }
+.cand-card .cand-text { color: var(--fg-muted); font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.cand-card.is-selected {
+  border-color: var(--good);
+  background: rgba(61,220,151,0.06);
+}
+.cand-card.is-selected .cand-idx {
+  background: var(--good); color: white; border-color: var(--good);
+}
+.cand-card .cand-check {
+  position: absolute; top: 8px; right: 10px;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--good); font-weight: 700;
+}
+.cand-selection {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--good);
+  background: rgba(61,220,151,0.04);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
 /* Memory detail popover */
 .popover-backdrop {
   position: absolute;

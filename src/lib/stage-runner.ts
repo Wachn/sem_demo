@@ -14,9 +14,10 @@ export interface RunOptions {
   rng?: () => number;
 }
 
-const STEP_PREFIX_KEY: Record<StepKind, 'step.thought' | 'step.planned' | 'step.projection' | 'step.action' | 'step.observation' | 'step.terminate'> = {
+const STEP_PREFIX_KEY: Record<StepKind, 'step.thought' | 'step.candidate' | 'step.selection' | 'step.projection' | 'step.action' | 'step.observation' | 'step.terminate'> = {
   thought: 'step.thought',
-  planned_action: 'step.planned',
+  candidate_trajectory: 'step.candidate',
+  contrastive_selection: 'step.selection',
   adversary_projection: 'step.projection',
   action_taken: 'step.action',
   environment_observation: 'step.observation',
@@ -52,25 +53,18 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
     newlyLearnedMemoryId: null,
     judgeVerdict: null,
     outcome: null,
+    currentRoundIndex: null,
     caption: ui('caption.starting', lang),
     highlightedNodeId: null,
     highlightedEdgeIds: [],
   }));
 
   // Stage 1: input
-  store.setState((s) => ({
-    ...s,
-    stage: 'input',
-    caption: ui('caption.s1', lang),
-    highlightedNodeId: 'node-input',
-    highlightedEdgeIds: [],
-  }));
+  store.setState((s) => ({ ...s, stage: 'input', caption: ui('caption.s1', lang), highlightedNodeId: 'node-input', highlightedEdgeIds: [] }));
   if (query.mode === 'fraud-signals') {
     const sig = FRAUD_SIGNALS.find((f) => f.id === query.fraudSignalId)!;
     store.appendChat({ sender: 'system', text: L(`${ui('sysmsg.input.signal', 'en')}\n${sig.summary.en}`, `${ui('sysmsg.input.signal', 'zh')}\n${sig.summary.zh}`) });
-    for (const detail of sig.details) {
-      store.appendChat({ sender: 'system', text: L('• ' + detail.en, '• ' + detail.zh) });
-    }
+    for (const detail of sig.details) store.appendChat({ sender: 'system', text: L('• ' + detail.en, '• ' + detail.zh) });
   } else {
     const snip = CHAT_SNIPPETS.find((c) => c.id === query.chatSnippetId)!;
     store.appendChat({ sender: 'system', text: L(`${ui('sysmsg.input.chat', 'en')} (${snip.participants.counterpart.en})`, `${ui('sysmsg.input.chat', 'zh')} (${snip.participants.counterpart.zh})`) });
@@ -78,22 +72,14 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
   }
   await sleep(stageDelay);
 
-  // Stage 2: query
-  store.setState((s) => ({
-    ...s,
-    stage: 'query',
-    caption: ui('caption.s2', lang),
-    highlightedNodeId: 'node-query',
-    highlightedEdgeIds: ['edge-input-query'],
-  }));
+  // Stage 2
+  store.setState((s) => ({ ...s, stage: 'query', caption: ui('caption.s2', lang), highlightedNodeId: 'node-query', highlightedEdgeIds: ['edge-input-query'] }));
   store.appendChat({ sender: 'system', text: L(`${ui('sysmsg.userQuery', 'en')} ${query.label.en} — ${query.preview.en}`, `${ui('sysmsg.userQuery', 'zh')} ${query.label.zh} — ${query.preview.zh}`) });
   await sleep(stageDelay);
 
-  // Stage 3: retrieval
+  // Stage 3
   const ext = store.getState().linkedExtensions[query.id] ?? [];
-  const effectiveLinked = [...query.linkedMemoryIds, ...ext].filter((id) =>
-    store.getState().bank.some((m) => m.id === id),
-  );
+  const effectiveLinked = [...query.linkedMemoryIds, ...ext].filter((id) => store.getState().bank.some((m) => m.id === id));
   const retrieved = retrieveTopMemories(store.getState().bank, effectiveLinked, rng);
   store.setState((s) => ({
     ...s,
@@ -125,8 +111,9 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
     const enPrefix = ui(STEP_PREFIX_KEY[stepObj.kind], 'en');
     const zhPrefix = ui(STEP_PREFIX_KEY[stepObj.kind], 'zh');
     let edges: string[] = [];
-    if (stepObj.kind === 'planned_action') edges = ['edge-agent-adversary'];
-    else if (stepObj.kind === 'adversary_projection') edges = ['edge-adversary-agent'];
+    if (stepObj.kind === 'candidate_trajectory') edges = [];
+    else if (stepObj.kind === 'contrastive_selection') edges = [];
+    else if (stepObj.kind === 'adversary_projection') edges = ['edge-agent-adversary', 'edge-adversary-agent'];
     else if (stepObj.kind === 'action_taken') edges = ['edge-agent-environment'];
     else if (stepObj.kind === 'environment_observation') edges = ['edge-environment-agent'];
     else if (stepObj.kind === 'terminate') edges = ['edge-agent-judge'];
@@ -134,17 +121,27 @@ export async function runDemo(store: Store, queryId: string, opts: RunOptions = 
     store.setState((s) => ({
       ...s,
       trajectoryStepIndex: i,
+      currentRoundIndex: typeof stepObj.roundIndex === 'number' ? stepObj.roundIndex : s.currentRoundIndex,
       highlightedNodeId: ACTOR_NODE[stepObj.actor],
       highlightedEdgeIds: edges,
     }));
+    let prefixEn = enPrefix;
+    let prefixZh = zhPrefix;
+    if (stepObj.kind === 'candidate_trajectory' && stepObj.candidateLabel && typeof stepObj.candidateIndex === 'number') {
+      prefixEn = `${enPrefix} (${stepObj.candidateIndex}) ${stepObj.candidateLabel.en}`;
+      prefixZh = `${zhPrefix} (${stepObj.candidateIndex}) ${stepObj.candidateLabel.zh}`;
+    } else if (stepObj.kind === 'contrastive_selection' && typeof stepObj.selectedIndex === 'number') {
+      prefixEn = `${enPrefix} → (${stepObj.selectedIndex})`;
+      prefixZh = `${zhPrefix} → (${stepObj.selectedIndex})`;
+    }
     store.appendChat({
       sender: stepObj.actor,
-      text: L(`${enPrefix} · ${stepObj.text.en}`, `${zhPrefix} · ${stepObj.text.zh}`),
+      text: L(`${prefixEn} · ${stepObj.text.en}`, `${prefixZh} · ${stepObj.text.zh}`),
     });
     await sleep(stepDelay);
   }
 
-  // Stage 5: factory
+  // Stage 5
   store.setState((s) => ({
     ...s,
     stage: 'factory',
